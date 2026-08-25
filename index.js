@@ -1,57 +1,47 @@
 const { 
     default: makeWASocket, 
     useMultiFileAuthState, 
-    DisconnectReason, 
-    delay 
+    DisconnectReason 
 } = require("@whiskeysockets/baileys");
+const qrcode = require("qrcode-terminal");
 const pino = require("pino");
 
-// NAMBA YAKO MPYA IMESHAREKEBISHWA HAPA CHINI
-const PHONE_NUMBER = "255617383650"; 
-
-let isPairingCodeRequested = false;
-
 async function startBot() {
+    // Inasimamia faili za login ili usiscan kila mara
     const { state, saveCreds } = await useMultiFileAuthState("auth_session");
 
     const sock = makeWASocket({
         logger: pino({ level: "silent" }),
-        printQRInTerminal: false,
+        printQRInTerminal: false, // Tumezima ile ya zamani inayovurugika
         auth: state,
-        browser: ["Mac OS", "Chrome", "10.0.0"] 
+        browser: ["Ubuntu", "Chrome", "20.0.04"]
     });
 
-    if (!sock.authState.creds.registered && !isPairingCodeRequested) {
-        isPairingCodeRequested = true;
-        await delay(5000); 
-        try {
-            let code = await sock.requestPairingCode(PHONE_NUMBER);
-            let formattedCode = code?.match(/.{1,4}/g)?.join("-") || code;
-            
-            console.log("\n==================================================");
-            console.log(`🔥 CODE YAKO MPYA: ${formattedCode} 🔥`);
-            console.log("==================================================\n");
-        } catch (error) {
-            console.error("❌ Hitilafu ya kodi: ", error);
-            isPairingCodeRequested = false;
-        }
-    }
-
+    // Hapa inatengeneza QR Code safi na kuikuza ili isomeke vizuri
     sock.ev.on("connection.update", async (update) => {
-        const { connection, lastDisconnect } = update;
+        const { connection, lastDisconnect, qr } = update;
         
+        if (qr) {
+            console.log("\n==================================================");
+            console.log("📸 SCAN QR CODE HII CHINI KUUNGANISHA WHATSAPP 📸");
+            console.log("==================================================\n");
+            // Inachora QR Code safi na kuipa nafasi (small: true inasaidia isivurugike)
+            qrcode.generate(qr, { small: true }); 
+            console.log("\n⚠️ Inakaa kwa sekunde 45! Scan sasa hivi kwa simu yako.");
+        }
+
         if (connection === "close") {
             const statusCode = lastDisconnect?.error?.output?.statusCode;
             const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
             
             console.log(`⚠️ Unganisho limekatika. Inajaribu kuwaka upya...`);
-            isPairingCodeRequested = false; 
             
             if (shouldReconnect) {
-                setTimeout(() => startBot(), 7000); 
+                // Inasubiri sekunde 15 kabla ya kujiwasha upya ili uwe na muda wa kuscan
+                setTimeout(() => startBot(), 15000); 
             }
         } else if (connection === "open") {
-            console.log("\n✅ Bot imeunganishwa kikamilifu kwenye WhatsApp! 🎉\n");
+            console.log("\n✅ HONGERA! Bot yako sasa ipo LIVE na imeunganishwa! 🎉\n");
         }
     });
 
@@ -78,7 +68,8 @@ async function startBot() {
     });
 }
 
-process.on("unhandledRejection", (reason, p) => {});
-process.on("uncaughtException", (err) => {});
+// Ulinzi wa kuzuia Railway isicrash
+process.on("unhandledRejection", () => {});
+process.on("uncaughtException", () => {});
 
 startBot();
