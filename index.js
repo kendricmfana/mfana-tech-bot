@@ -7,17 +7,15 @@ const qrcode = require("qrcode-terminal");
 const pino = require("pino");
 
 async function startBot() {
-    // Inasimamia faili za login ili usiscan kila mara
     const { state, saveCreds } = await useMultiFileAuthState("auth_session");
 
     const sock = makeWASocket({
         logger: pino({ level: "silent" }),
-        printQRInTerminal: false, // Tumezima ile ya zamani inayovurugika
+        printQRInTerminal: false, 
         auth: state,
         browser: ["Ubuntu", "Chrome", "20.0.04"]
     });
 
-    // Hapa inatengeneza QR Code safi na kuikuza ili isomeke vizuri
     sock.ev.on("connection.update", async (update) => {
         const { connection, lastDisconnect, qr } = update;
         
@@ -25,8 +23,10 @@ async function startBot() {
             console.log("\n==================================================");
             console.log("📸 SCAN QR CODE HII CHINI KUUNGANISHA WHATSAPP 📸");
             console.log("==================================================\n");
-            // Inachora QR Code safi na kuipa nafasi (small: true inasaidia isivurugike)
-            qrcode.generate(qr, { small: true }); 
+            
+            // Tumeondoa { small: true } ili kutoa QR Code kubwa na imara kama ya terminal ya PC
+            qrcode.generate(qr); 
+            
             console.log("\n⚠️ Inakaa kwa sekunde 45! Scan sasa hivi kwa simu yako.");
         }
 
@@ -35,9 +35,7 @@ async function startBot() {
             const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
             
             console.log(`⚠️ Unganisho limekatika. Inajaribu kuwaka upya...`);
-            
             if (shouldReconnect) {
-                // Inasubiri sekunde 15 kabla ya kujiwasha upya ili uwe na muda wa kuscan
                 setTimeout(() => startBot(), 15000); 
             }
         } else if (connection === "open") {
@@ -68,7 +66,6 @@ async function startBot() {
     });
 }
 
-// Ulinzi wa kuzuia Railway isicrash
 process.on("unhandledRejection", () => {});
 process.on("uncaughtException", () => {});
 
