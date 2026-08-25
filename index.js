@@ -5,85 +5,59 @@ const {
     delay 
 } = require("@whiskeysockets/baileys");
 const pino = require("pino");
-const fs = require("fs");
 
-// NB: WEKA NAMBA YAKO YA SIMU HAPA (Anza na 255 bila alama ya +)
-const PHONE_NUMBER = "255XXXXXXXXX"; 
+// WEKA NAMBA YAKO YA SIMU HAPA (Anza na 255)
+const PHONE_NUMBER = "255712345678"; 
 
 async function startBot() {
-    // Kusimamia faili za session ili usihitaji kuunganisha kila mara seva ikizima
     const { state, saveCreds } = await useMultiFileAuthState("auth_session");
 
-    // Kusanidi unganisho la bot
     const sock = makeWASocket({
-        logger: pino({ level: "silent" }), // Inazima fujo za log zisizo na mpango
-        printQRInTerminal: false,          // INAZIMA kabisa QR Code isitokee kwenye terminal
+        logger: pino({ level: "silent" }),
+        printQRInTerminal: false,
         auth: state,
-        browser: ["Ubuntu", "Chrome", "20.0.04"] // Inahitajika ili kufanya pairing code ikubaliwe
+        // Mpangilio mpya unaokubalika na matoleo yote ya WhatsApp bila kukwama
+        browser: ["Mac OS", "Chrome", "10.0.0"] 
     });
 
-    // Amri ya kuomba Pairing Code kama bot haijaunganishwa bado
     if (!sock.authState.creds.registered) {
-        // Hakikisha namba ya simu imewekwa vizuri kabla ya kuomba kodi
-        if (!PHONE_NUMBER || PHONE_NUMBER === "255617383650") {
-            console.log("\n❌ MAKOSA: Tafadhali fungua faili la index.js na uweke namba yako ya simu ya kweli kwenye mstari wa 10!\n");
-            process.exit(1);
-        }
-
-        await delay(3000); // Subiri sekunde 3 ili mfumo ukae sawa
+        await delay(5000); // Inapa seva muda wa sekunde 5 kutulia kwanza
         try {
             let code = await sock.requestPairingCode(PHONE_NUMBER);
-            // Inatenganisha herufi kuwa nne nne ili iwe rahisi kusomeka (mfano: ABCD-EFGH)
             let formattedCode = code?.match(/.{1,4}/g)?.join("-") || code;
             
             console.log("\n==================================================");
-            console.log(`🔥 CODE YAKO YA WHATSAPP NI: ${formattedCode} 🔥`);
+            console.log(`🔥 CODE YAKO MPYA: ${formattedCode} 🔥`);
             console.log("==================================================\n");
+            console.log("⚠️ Ingiza namba hii kwenye simu yako sasa hivi kabla seva haijajizima!");
         } catch (error) {
-            console.error("❌ Imeshindikana kupata Pairing Code: ", error);
+            console.error("❌ Hitilafu ya kodi: ", error);
         }
     }
 
-    // Kufuatilia hali ya unganisho (Connection Status)
     sock.ev.on("connection.update", async (update) => {
         const { connection, lastDisconnect } = update;
         
         if (connection === "close") {
             const shouldReconnect = lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut;
-            console.log(" Unganisho limekatika kutokana na: ", lastDisconnect?.error, ". Inajaribu kuwaka upya: ", shouldReconnect);
-            
+            console.log(" Unganisho limekatika. Inajaribu kuwaka upya...");
             if (shouldReconnect) {
-                startBot(); // Inawasha upya bot kama haukujitoa mwenyewe (logout)
+                // Inasubiri sekunde 5 kabla ya kujiwasha upya kuzuia seva isichoke (Crash Loop)
+                setTimeout(() => startBot(), 5000); 
             }
         } else if (connection === "open") {
-            console.log("\n✅ HONGERA! Bot yako ya WhatsApp sasa ipo LIVE na imeunganishwa kikamilifu! 🎉\n");
+            console.log("\n✅ Bot imeunganishwa kikamilifu! 🎉\n");
         }
     });
 
-    // Kuhifadhi mabadiliko ya siri za unganisho (Credentials)
     sock.ev.on("creds.update", saveCreds);
 
-    // Mfano wa kupokea ujumbe na kujibu (Unaweza kuweka kodi zako za bot hapa chini)
-    sock.ev.on("messages.upsert", async (chatUpdate) => {
-        try {
-            const msg = chatUpdate.messages[0];
-            if (!msg.message || msg.key.fromMe) return; // Puuza ujumbe kama umetoka kwako
-
-            const messageType = Object.keys(msg.message)[0];
-            const text = messageType === "conversation" ? msg.message.conversation : 
-                         messageType === "extendedTextMessage" ? msg.message.extendedTextMessage.text : "";
-
-            const from = msg.key.remoteJid;
-
-            // Mfano rahisi: Mtu akiandika "mambo" bot inajibu "Safi! Nilikuwa nakusubiri."
-            if (text.toLowerCase() === "mambo") {
-                await sock.sendMessage(from, { text: "Safi! Nilikuwa nakusubiri." }, { quoted: msg });
-            }
-        } catch (e) {
-            console.log("Makosa kwenye kupokea ujumbe: ", e);
+    // Sehemu ya kuzuia kodi isife (Keep Alive Timer)
+    setInterval(() => {
+        if (!sock.authState.creds.registered) {
+            console.log("... Mfumo bado unasubiri uingize namba kwenye WhatsApp ...");
         }
-    });
+    }, 20000); // Kila baada ya sekunde 20 inakumbusha seva kuwa bado inafanya kazi
 }
 
-// Anzisha mfumo mzima
 startBot();
