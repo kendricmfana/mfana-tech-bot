@@ -6,8 +6,8 @@ const {
 } = require("@whiskeysockets/baileys");
 const pino = require("pino");
 
-// 1. WEKA NAMBA YAKO YA SIMU HAPA (Anza na 255)
-const PHONE_NUMBER = "255712345678"; 
+// NAMBA YAKO MPYA IMESHAREKEBISHWA HAPA CHINI
+const PHONE_NUMBER = "255617383650"; 
 
 let isPairingCodeRequested = false;
 
@@ -21,10 +21,9 @@ async function startBot() {
         browser: ["Mac OS", "Chrome", "10.0.0"] 
     });
 
-    // Inaleta kodi mara moja tu na inasubiri bila kucrash seva
     if (!sock.authState.creds.registered && !isPairingCodeRequested) {
         isPairingCodeRequested = true;
-        await delay(5000); // Subiri sekunde 5 seva itulie
+        await delay(5000); 
         try {
             let code = await sock.requestPairingCode(PHONE_NUMBER);
             let formattedCode = code?.match(/.{1,4}/g)?.join("-") || code;
@@ -45,11 +44,11 @@ async function startBot() {
             const statusCode = lastDisconnect?.error?.output?.statusCode;
             const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
             
-            console.log(`⚠️ Unganisho limekatika (Status: ${statusCode}). Inajaribu kuwaka upya...`);
+            console.log(`⚠️ Unganisho limekatika. Inajaribu kuwaka upya...`);
+            isPairingCodeRequested = false; 
             
             if (shouldReconnect) {
-                // Inasubiri sekunde 10 kabla ya kujiwasha upya kuzuia crash loop
-                setTimeout(() => startBot(), 10000); 
+                setTimeout(() => startBot(), 7000); 
             }
         } else if (connection === "open") {
             console.log("\n✅ Bot imeunganishwa kikamilifu kwenye WhatsApp! 🎉\n");
@@ -60,10 +59,10 @@ async function startBot() {
 
     sock.ev.on("messages.upsert", async (chatUpdate) => {
         try {
-            const msg = chatUpdate.messages[0];
+            const msg = chatUpdate.messages;
             if (!msg.message || msg.key.fromMe) return;
 
-            const messageType = Object.keys(msg.message)[0];
+            const messageType = Object.keys(msg.message);
             let text = "";
             if (messageType === "conversation") text = msg.message.conversation;
             else if (messageType === "extendedTextMessage") text = msg.message.extendedTextMessage.text;
@@ -79,12 +78,7 @@ async function startBot() {
     });
 }
 
-// 2. ULINZI WA KICHADHI: Inazuia seva ya Railway isife (isicrash) hata kukiwa na hitilafu yoyote
-process.on("unhandledRejection", (reason, p) => {
-    console.log("Ulinzi: Imepuuza kosa la unhandledRejection", reason);
-});
-process.on("uncaughtException", (err) => {
-    console.log("Ulinzi: Imepuuza kosa la uncaughtException", err);
-});
+process.on("unhandledRejection", (reason, p) => {});
+process.on("uncaughtException", (err) => {});
 
 startBot();
