@@ -5,15 +5,36 @@ const pino = require('pino');
 async function connectToWhatsApp() {
     const { state, saveCreds } = await useMultiFileAuthState('auth_info_baileys');
 
+    // Tumezima printQRInTerminal ili isilete picha iliyovurugika mtandaoni
     const sock = makeWASocket({
         auth: state,
         logger: pino({ level: 'silent' }),
-        printQRInTerminal: true
+        printQRInTerminal: false 
     });
+
+    // MFUMO WA PAIRING CODE BADALA YA QR CODE
+    if (!sock.authState.creds.registered) {
+        // 🔥 BADILISHA HAPA: Weka namba ya simu ya Mfana Tech kuanza na 255 bila alama ya jumlisha (+)
+        const phoneNumber = "255XXXXXXXXX"; 
+        
+        setTimeout(async () => {
+            try {
+                const code = await sock.requestPairingCode(phoneNumber);
+                console.log(`\n========================================`);
+                console.log(`🔥 CODE YAKO YA WHATSAPP NI: ${code} 🔥`);
+                console.log(`========================================\n`);
+            } catch (error) {
+                console.log("Imeshindwa kupata pairing code: ", error);
+            }
+        }, 5000); // Inasubiri sekunde 5 mfumo uamke vizuri kwenye seva
+    }
 
     sock.ev.on('connection.update', (update) => {
         const { connection, lastDisconnect, qr } = update;
-        if (qr) qrcode.generate(qr, { small: true });
+        if (qr && !sock.authState.creds.registered) {
+            // Hapa qrcode itajigenerate kimya kimya lakini haitaharibu log za seva
+            qrcode.generate(qr, { small: true });
+        }
 
         if (connection === 'close') {
             const shouldReconnect = lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut;
@@ -43,7 +64,7 @@ async function connectToWhatsApp() {
         } 
         else if (cleanText === 'huduma') {
             await sock.sendMessage(remoteJid, { 
-                text: '🛠️ *HUDUMA ZETU ZA IT:* ✨\n\n1️⃣ *WhatsApp Automation & Chatbots* (Kuongeza mauzo ya biashara yako masaa 24).\n2️⃣ *Custom POS & ERP Systems* (Mifumo ya usimamizi wa maduka na kudhibiti wizi).\n3️⃣ *Network Configuration & Wi-Fi Portals* (Kwa ajili ya mahoteli na maofisi).\n\n_Jibu kwa kuandika namba ya huduma (mfano: 1) ili kupata mchanganuo wa bei na jinsi tunavyofanya._' 
+                text: '🛠️ *HUDUMA ZETU ZA IT:* ✨\n\n1️⃣ *WhatsApp Automation & Chatbots* (Kuongeza mauzo ya biashara yako masaa 24).\n2️⃣ *Custom POS & ERP Systems* (Mifumo ya usimamizi wa maduka na kudhibiti wizi).\n3️⃣ *Network Configuration & Wi-Fi Portals* (Kwa ajili ya mahoteli na maofisi).\n\n_Jibu kwa kuandika namba ya huduma (mfano: 1) ili kupata mchanganuo Guild ya bei na jinsi tunavyofanya._' 
             });
         } 
         else if (cleanText === 'ofisi') {
