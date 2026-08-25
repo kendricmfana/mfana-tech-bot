@@ -3,37 +3,46 @@ const {
     useMultiFileAuthState, 
     DisconnectReason 
 } = require("@whiskeysockets/baileys");
+const qrcode = require("qrcode-terminal"); // Inaleta uwezo wa kuchora QR
 const pino = require("pino");
 
 async function startBot() {
-    // Inasimamia faili za session ili usiscan kila mara
     const { state, saveCreds } = await useMultiFileAuthState("auth_session");
 
     const sock = makeWASocket({
         logger: pino({ level: "silent" }),
-        printQRInTerminal: true, // HII NDIO INAYOCHORA QR CODE KUBWA KAMA YA TERMINAL YA PC YAKO!
         auth: state,
         browser: ["Ubuntu", "Chrome", "20.0.04"]
     });
 
-    // Kufuatilia hali ya unganisho
+    // Kusikiliza tukio la QR Code na kuichora upya
     sock.ev.on("connection.update", async (update) => {
-        const { connection, lastDisconnect } = update;
+        const { connection, lastDisconnect, qr } = update;
         
+        if (qr) {
+            console.log("\n==================================================");
+            console.log("📸 SCAN QR CODE KUBWA HAPA CHINI 📸");
+            console.log("==================================================\n");
+            
+            // Hapa inaichora ile QR Code kubwa na kamili kabisa kama ya PC yako!
+            qrcode.generate(qr, { small: false }); 
+            
+            console.log("\n⚠️ Inakaa kwa sekunde 45! Scan sasa hivi kwa simu yako.");
+        }
+
         if (connection === "close") {
             const shouldReconnect = lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut;
-            console.log("⚠️ Unganisho limefungwa. Inajiwasha upya sasa hivi...");
+            console.log("⚠️ Unganisho limefungwa. Inajiwasha upya...");
             if (shouldReconnect) {
-                startBot(); // Inawasha upya kuzuia isife
+                setTimeout(() => startBot(), 10000); // Inasubiri sekunde 10 kabla ya kuwaka upya
             }
         } else if (connection === "open") {
-            console.log("\n✅ HONGERA! Bot yako sasa ipo LIVE na imeunganishwa kikamilifu! 🎉\n");
+            console.log("\n✅ HONGERA! Bot yako sasa ipo LIVE na imeunganishwa! 🎉\n");
         }
     });
 
     sock.ev.on("creds.update", saveCreds);
 
-    // Sehemu ya kupokea na kujibu ujumbe
     sock.ev.on("messages.upsert", async (chatUpdate) => {
         try {
             const msg = chatUpdate.messages;
@@ -53,4 +62,9 @@ async function startBot() {
         }
     });
 }
+
+// Kuzuia isife njiani
+process.on("unhandledRejection", () => {});
+process.on("uncaughtException", () => {});
+
 startBot();
