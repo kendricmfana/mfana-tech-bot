@@ -25,7 +25,7 @@ async function startBot() {
     // Amri ya kuomba Pairing Code kama bot haijaunganishwa bado
     if (!sock.authState.creds.registered) {
         // Hakikisha namba ya simu imewekwa vizuri kabla ya kuomba kodi
-        if (!PHONE_NUMBER || PHONE_NUMBER === "255XXXXXXXXX") {
+        if (!PHONE_NUMBER || PHONE_NUMBER === "255617383650") {
             console.log("\n❌ MAKOSA: Tafadhali fungua faili la index.js na uweke namba yako ya simu ya kweli kwenye mstari wa 10!\n");
             process.exit(1);
         }
