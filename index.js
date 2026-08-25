@@ -6,8 +6,10 @@ const {
 } = require("@whiskeysockets/baileys");
 const pino = require("pino");
 
-// WEKA NAMBA YAKO YA SIMU HAPA (Anza na 255)
+// 1. WEKA NAMBA YAKO YA SIMU HAPA (Anza na 255)
 const PHONE_NUMBER = "255712345678"; 
+
+let isPairingCodeRequested = false;
 
 async function startBot() {
     const { state, saveCreds } = await useMultiFileAuthState("auth_session");
@@ -16,12 +18,13 @@ async function startBot() {
         logger: pino({ level: "silent" }),
         printQRInTerminal: false,
         auth: state,
-        // Mpangilio mpya unaokubalika na matoleo yote ya WhatsApp bila kukwama
         browser: ["Mac OS", "Chrome", "10.0.0"] 
     });
 
-    if (!sock.authState.creds.registered) {
-        await delay(5000); // Inapa seva muda wa sekunde 5 kutulia kwanza
+    // Inaleta kodi mara moja tu na inasubiri bila kucrash seva
+    if (!sock.authState.creds.registered && !isPairingCodeRequested) {
+        isPairingCodeRequested = true;
+        await delay(5000); // Subiri sekunde 5 seva itulie
         try {
             let code = await sock.requestPairingCode(PHONE_NUMBER);
             let formattedCode = code?.match(/.{1,4}/g)?.join("-") || code;
@@ -29,9 +32,9 @@ async function startBot() {
             console.log("\n==================================================");
             console.log(`🔥 CODE YAKO MPYA: ${formattedCode} 🔥`);
             console.log("==================================================\n");
-            console.log("⚠️ Ingiza namba hii kwenye simu yako sasa hivi kabla seva haijajizima!");
         } catch (error) {
             console.error("❌ Hitilafu ya kodi: ", error);
+            isPairingCodeRequested = false;
         }
     }
 
@@ -39,25 +42,49 @@ async function startBot() {
         const { connection, lastDisconnect } = update;
         
         if (connection === "close") {
-            const shouldReconnect = lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut;
-            console.log(" Unganisho limekatika. Inajaribu kuwaka upya...");
+            const statusCode = lastDisconnect?.error?.output?.statusCode;
+            const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
+            
+            console.log(`⚠️ Unganisho limekatika (Status: ${statusCode}). Inajaribu kuwaka upya...`);
+            
             if (shouldReconnect) {
-                // Inasubiri sekunde 5 kabla ya kujiwasha upya kuzuia seva isichoke (Crash Loop)
-                setTimeout(() => startBot(), 5000); 
+                // Inasubiri sekunde 10 kabla ya kujiwasha upya kuzuia crash loop
+                setTimeout(() => startBot(), 10000); 
             }
         } else if (connection === "open") {
-            console.log("\n✅ Bot imeunganishwa kikamilifu! 🎉\n");
+            console.log("\n✅ Bot imeunganishwa kikamilifu kwenye WhatsApp! 🎉\n");
         }
     });
 
     sock.ev.on("creds.update", saveCreds);
 
-    // Sehemu ya kuzuia kodi isife (Keep Alive Timer)
-    setInterval(() => {
-        if (!sock.authState.creds.registered) {
-            console.log("... Mfumo bado unasubiri uingize namba kwenye WhatsApp ...");
+    sock.ev.on("messages.upsert", async (chatUpdate) => {
+        try {
+            const msg = chatUpdate.messages[0];
+            if (!msg.message || msg.key.fromMe) return;
+
+            const messageType = Object.keys(msg.message)[0];
+            let text = "";
+            if (messageType === "conversation") text = msg.message.conversation;
+            else if (messageType === "extendedTextMessage") text = msg.message.extendedTextMessage.text;
+
+            const from = msg.key.remoteJid;
+
+            if (text.toLowerCase() === "mambo") {
+                await sock.sendMessage(from, { text: "Safi! Nilikuwa nakusubiri." }, { quoted: msg });
+            }
+        } catch (e) {
+            console.log("Makosa kwenye kupokea ujumbe: ", e);
         }
-    }, 20000); // Kila baada ya sekunde 20 inakumbusha seva kuwa bado inafanya kazi
+    });
 }
+
+// 2. ULINZI WA KICHADHI: Inazuia seva ya Railway isife (isicrash) hata kukiwa na hitilafu yoyote
+process.on("unhandledRejection", (reason, p) => {
+    console.log("Ulinzi: Imepuuza kosa la unhandledRejection", reason);
+});
+process.on("uncaughtException", (err) => {
+    console.log("Ulinzi: Imepuuza kosa la uncaughtException", err);
+});
 
 startBot();
